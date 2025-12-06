@@ -5,6 +5,7 @@ import numpy as np
 def calculate_momentum_indicators(df: pd.DataFrame) -> dict:
     """
     Calculates RSI and Stochastic RSI and assigns a score and label.
+    Includes safety checks for minimum data and column existence.
     
     Args:
         df: Normalized DataFrame containing 'close' column.
@@ -13,19 +14,40 @@ def calculate_momentum_indicators(df: pd.DataFrame) -> dict:
         A dictionary containing the score and label for each indicator.
     """
     df_temp = df.copy()
-    
-    # --- 1. Calculate Indicators ---
-    # pandas-ta documentation: df.ta.rsi(length=14)
-    df_temp.ta.rsi(length=14, append=True)
-    
-    # pandas-ta documentation: df.ta.stoch(k=14, d=3, smooth_k=3)
-    df_temp.ta.stoch(k=14, d=3, append=True)
-    
-    # Get the latest values
-    latest_rsi = df_temp['RSI_14'].iloc[-1]
-    latest_stoch_k = df_temp['STOCHk_14_3_3'].iloc[-1]
-    
     results = {}
+    
+    RSI_COL = 'RSI_14'
+    STOCH_K_COL = 'STOCHk_14_3_3'
+    
+    # Check 1: Minimum Data Length (Need at least 14 rows for RSI)
+    if len(df_temp) < 14:
+        # If not enough data, return Neutral for all indicators
+        return {
+            'RSI': {"score": 0.0, "label": "Insufficient Data (Need 14+ days)"},
+            'Stoch_RSI': {"score": 0.0, "label": "Insufficient Data (Need 14+ days)"}
+        }
+
+    # --- 1. Calculate Indicators ---
+    df_temp.ta.rsi(length=14, append=True)
+    df_temp.ta.stoch(k=14, d=3, append=True)
+
+    # Check 2: Ensure pandas-ta created the columns
+    if RSI_COL not in df_temp.columns or STOCH_K_COL not in df_temp.columns:
+        return {
+            'RSI': {"score": 0.0, "label": "Calculation Error (TA failed)"},
+            'Stoch_RSI': {"score": 0.0, "label": "Calculation Error (TA failed)"}
+        }
+        
+    # Get the latest values
+    latest_rsi = df_temp[RSI_COL].iloc[-1]
+    latest_stoch_k = df_temp[STOCH_K_COL].iloc[-1]
+    
+    # Check 3: Ensure the latest value is not NaN (can happen if data is exactly 14/15 rows)
+    if pd.isna(latest_rsi) or pd.isna(latest_stoch_k):
+        return {
+            'RSI': {"score": 0.0, "label": "Indicator Value NaN"},
+            'Stoch_RSI': {"score": 0.0, "label": "Indicator Value NaN"}
+        }
 
     # --- 2. RSI Signal Scoring (Range: -1.0 to +1.0) ---
     rsi_score = 0.0
