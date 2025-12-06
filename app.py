@@ -80,7 +80,6 @@ if ticker_symbol:
         chart_fig = create_candlestick_chart(data_df, ticker_symbol)
         st.plotly_chart(chart_fig, use_container_width=True) 
 
-[Image of a Plotly Candlestick Chart for a stock ticker]
 
 
         st.markdown("---")
