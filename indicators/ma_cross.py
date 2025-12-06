@@ -1,9 +1,11 @@
 import pandas as pd
 import pandas_ta as ta
+import numpy as np
 
 def calculate_trend_indicators(df: pd.DataFrame) -> dict:
     """
     Calculates EMA/SMA trends and the Golden/Death Cross and assigns a score and label.
+    Includes safety checks for minimum data length.
     
     Args:
         df: Normalized DataFrame containing 'close' column.
@@ -13,6 +15,15 @@ def calculate_trend_indicators(df: pd.DataFrame) -> dict:
     """
     df_temp = df.copy()
     
+    # Check 1: Minimum Data Length (Need at least 200 rows for MA_200 indicators)
+    if len(df_temp) < 200:
+        # If not enough data, return Neutral for all trend indicators
+        return {
+            'EMA_Trend': {"score": 0.0, "label": "Insufficient Data (Need 200+ days)"},
+            'SMA_Trend': {"score": 0.0, "label": "Insufficient Data (Need 200+ days)"},
+            'MA_Cross': {"score": 0.0, "label": "Insufficient Data (Need 200+ days)"}
+        }
+        
     # --- 1. Calculate Indicators ---
     # EMAs: 20, 50, 200
     df_temp.ta.ema(length=20, append=True)
@@ -23,6 +34,19 @@ def calculate_trend_indicators(df: pd.DataFrame) -> dict:
     df_temp.ta.sma(length=50, append=True)
     df_temp.ta.sma(length=200, append=True)
     
+    # Define expected column names
+    EMA_200_COL = 'EMA_200'
+    SMA_50_COL = 'SMA_50'
+    SMA_200_COL = 'SMA_200'
+    
+    # Check 2: Ensure pandas-ta created the columns (minimal check for 200 period)
+    if EMA_200_COL not in df_temp.columns or SMA_200_COL not in df_temp.columns:
+         return {
+            'EMA_Trend': {"score": 0.0, "label": "Calculation Error (MA failed)"},
+            'SMA_Trend': {"score": 0.0, "label": "Calculation Error (MA failed)"},
+            'MA_Cross': {"score": 0.0, "label": "Calculation Error (MA failed)"}
+        }
+
     # Get the latest values
     latest_close = df_temp['close'].iloc[-1]
     latest_ema_20 = df_temp['EMA_20'].iloc[-1]
@@ -31,10 +55,16 @@ def calculate_trend_indicators(df: pd.DataFrame) -> dict:
     
     latest_sma_50 = df_temp['SMA_50'].iloc[-1]
     latest_sma_200 = df_temp['SMA_200'].iloc[-1]
-    
+
+    # Check 3: Ensure values are not NaN
+    if pd.isna(latest_ema_200) or pd.isna(latest_sma_200):
+        return {
+            'EMA_Trend': {"score": 0.0, "label": "Indicator Value NaN"},
+            'SMA_Trend': {"score": 0.0, "label": "Indicator Value NaN"},
+            'MA_Cross': {"score": 0.0, "label": "Indicator Value NaN"}
+        }
+
     # Check for Cross (using 50 and 200 period SMAs)
-    # 50 SMA > 200 SMA (Bullish: Golden Cross)
-    # 50 SMA < 200 SMA (Bearish: Death Cross)
     cross_signal = (latest_sma_50 - latest_sma_200)
 
     results = {}
